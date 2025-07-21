@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"go-emqx_coap/coap"
 	"time"
 
 	"github.com/plgd-dev/go-coap/v3/udp"
+	"github.com/zhouyang1/go-emqx_coap/coap"
 )
 
 func main() {
