@@ -20,19 +20,55 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	cliID := "1234"
+
 	token, err := obj.Connection(ctx, co, cliID, true, "cqset", "cqset_coap")
 	fmt.Println(token, "-------", err)
 
-	num := 0
-	for {
-		payload := []byte("  Hello, CoAP" + fmt.Sprintf("%d", num))
+	// err = obj.DelConnect(ctx, co, token, cliID)
+	// fmt.Println("err-------", err)
+	// return
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		obj.Push(ctx, co, cliID, token, "/test/topic", payload)
-		cancel()
+	// for {
+	// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	// 	err = obj.Heartbeat(ctx, co, token, cliID)
+	// 	defer cancel()
+	// 	fmt.Println("err-------", err)
+	// 	// cancel()
 
-		num++
-		time.Sleep(time.Second * 5)
-	}
+	// 	num++
+	// 	time.Sleep(time.Second * 5)
+	// }
+	go func() {
+		num := 0
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
 
+			if num >= 5 {
+				err = obj.DelTopic(ctx, co, token, cliID, "/test/topic")
+				fmt.Println("--del topic------", err)
+			} else {
+				obj.Sub(ctx, co, token, cliID, "/test/topic")
+			}
+
+			num++
+			time.Sleep(time.Second * 5)
+		}
+	}()
+
+	go func() {
+		num := 0
+		for {
+			payload := []byte("  Hello, CoAP" + fmt.Sprintf("%d", num))
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			obj.Push(ctx, co, token, cliID, "/test/topic", payload)
+
+			num++
+			time.Sleep(time.Second * 5)
+		}
+	}()
+
+	time.Sleep(time.Minute * 1)
 }

@@ -5,10 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
+	"github.com/plgd-dev/go-coap/v3/message/pool"
 	"github.com/plgd-dev/go-coap/v3/udp/client"
 )
 
@@ -22,6 +22,10 @@ type CoapClient interface {
 	Connection(ctx context.Context, co *client.Conn, c string, auth bool, args ...string) (token string, err error)
 }
 
+func NewCoap() Coap {
+	return Coap{}
+}
+
 /*
 * github.com/plgd-dev/go-coap/v3/udp
 *	co, err := udp.Dial(fmt.Sprintf("%s:%s", host, port))
@@ -29,9 +33,6 @@ type CoapClient interface {
 *		return
 *	}
  */
-func NewCoap() Coap {
-	return Coap{}
-}
 func (c Coap) Connection(ctx context.Context, co *client.Conn, cliID string, auth bool, args ...string) (ctoken string, err error) {
 	req := co.AcquireMessage(ctx)
 	defer co.ReleaseMessage(req)
@@ -57,15 +58,11 @@ func (c Coap) Connection(ctx context.Context, co *client.Conn, cliID string, aut
 		return
 	}
 	// fmt.Println("connect rs :", resp)
-	ctoken, err = bodyToString(resp.Body())
-	return
+	buf, err := bodyToString(resp.Body())
+	return string(buf), err
 }
 
-func delConnect(co *client.Conn, ctoken, cid string) error {
-	// 设置上下文和超时时间
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-
+func (c Coap) DelConnect(ctx context.Context, co *client.Conn, ctoken, cid string) error {
 	req := co.AcquireMessage(ctx)
 	defer co.ReleaseMessage(req)
 
@@ -77,26 +74,48 @@ func delConnect(co *client.Conn, ctoken, cid string) error {
 	req.SetPath(path)
 	token, err := message.GetToken()
 	if err != nil {
-		panic("token:" + err.Error())
+		return err
 	}
 	req.SetToken(token)
 
 	req.AddOptionBytes(message.URIQuery, []byte("clientid="+cid))
 	req.AddOptionBytes(message.URIQuery, []byte("token="+ctoken))
 
-	// 发送 POST 请求
-	resp, err := co.Do(req)
+	// resp, err := co.Do(req)
+	_, err = co.Do(req)
 	if err != nil {
-		fmt.Println(resp)
-		panic("delConnect: " + err.Error())
+		return err
 	}
-	fmt.Println("delConnect rs :", resp)
-
-	// return resp.Token().String(), resp.MessageID()
+	// fmt.Println("delConnect rs :", resp)
 	return nil
 }
 
-func (c Coap) Push(ctx context.Context, co *client.Conn, cliID, ctoken, topic string, data []byte) (err error) {
+func (c Coap) Heartbeat(ctx context.Context, co *client.Conn, ctoken, cid string) error {
+	req := co.AcquireMessage(ctx)
+	defer co.ReleaseMessage(req)
+
+	req.SetCode(codes.PUT)
+	token, err := message.GetToken()
+	if err != nil {
+		return err
+	}
+
+	req.SetToken(token)
+	req.SetPath("mqtt/connection")
+
+	req.AddOptionBytes(message.URIQuery, []byte("clientid="+cid))
+	req.AddOptionBytes(message.URIQuery, []byte("token="+ctoken))
+
+	// resp, err := co.Do(req)
+	_, err = co.Do(req)
+	if err != nil {
+		return err
+	}
+	// fmt.Println("heartbeat rs:", resp)
+	return nil
+}
+
+func (c Coap) Push(ctx context.Context, co *client.Conn, ctoken, cliID, topic string, data []byte) (err error) {
 	req := co.AcquireMessage(ctx)
 	defer co.ReleaseMessage(req)
 
@@ -134,20 +153,82 @@ func (c Coap) Push(ctx context.Context, co *client.Conn, cliID, ctoken, topic st
 		return
 	}
 	// fmt.Println("Push rs :", resp)
-	// byInfo, err := bodyToString(resp.Body())
-	// fmt.Println("byInfo :", byInfo)
 	return nil
 
 }
+func (c Coap) Sub(ctx context.Context, co *client.Conn, ctoken, cliID, topic string) (data []byte, err error) {
+	req := co.AcquireMessage(ctx)
+	defer co.ReleaseMessage(req)
+	if topic[0] == '/' {
+		topic = topic[1:]
+	}
+	path := "ps/" + topic
 
-func bodyToString(body io.Reader) (string, error) {
+	token, err := message.GetToken()
+	if err != nil {
+		return
+	}
+	req.SetToken(token)
+	req.SetContentFormat(message.TextPlain)
+
+	req.AddOptionBytes(message.URIQuery, []byte("clientid="+cliID))
+	req.AddOptionBytes(message.URIQuery, []byte("token="+ctoken))
+	req.AddOptionBytes(message.URIQuery, []byte("observer=0"))
+
+	_, err = co.Observe(ctx, path, func(req *pool.Message) {
+		if req == nil {
+			return
+		}
+		content, err := bodyToString(req.Body())
+		if err != nil {
+			return
+		}
+		// fmt.Println("sub rs:", string(content))
+		data = content
+	}, req.Options()...)
+	return
+}
+
+func (c Coap) DelTopic(ctx context.Context, co *client.Conn, ctoken, cliID, topic string) (err error) {
+	req := co.AcquireMessage(ctx)
+	defer co.ReleaseMessage(req)
+
+	req.SetCode(codes.GET)
+	if topic[0] == '/' {
+		topic = topic[1:]
+	}
+	path := "ps/" + topic
+	// path := "ps/" + topic + "?clientid=" + cliID + "&token=" + ctoken
+	req.SetPath(path)
+	token, err := message.GetToken()
+	if err != nil {
+		return
+	}
+	req.SetToken(token)
+
+	req.AddOptionBytes(message.URIQuery, []byte("clientid="+cliID))
+	req.AddOptionBytes(message.URIQuery, []byte("token="+ctoken))
+	resp, err := co.Do(req)
+	if err != nil {
+		return
+	}
+	fmt.Println("DelTopic rs :", resp)
+	// content, err := bodyToString(req.Body())
+	// if err != nil {
+	// 	return
+	// }
+	// fmt.Println("DelTopic body:", string(content))
+	return err
+}
+
+func bodyToString(body io.Reader) ([]byte, error) {
 	if body == nil {
-		return "", nil
+		return []byte{}, nil
 	}
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(body)
 	if err != nil {
-		return "", err
+		return []byte{}, err
 	}
-	return buf.String(), nil
+	return buf.Bytes(), nil
 }
