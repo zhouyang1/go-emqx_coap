@@ -1,5 +1,5 @@
 ## 简介
-基于 https://github.com/plgd-dev/go-coap仓库封装，开箱即用
+基于 https://github.com/plgd-dev/go-coap 仓库封装，开箱即用
 
 
 ## 功能
@@ -48,7 +48,7 @@
     defer cancel()
     obj.Sub(ctx, co, cliID, token, "/test/topic")
 ```
-### 取消订阅（未实现）
+### 取消订阅
 ```
     ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
     defer cancel()

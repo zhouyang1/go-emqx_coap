@@ -38,6 +38,7 @@ func main() {
 	// 	num++
 	// 	time.Sleep(time.Second * 5)
 	// }
+	topic := "/test/topic"
 	go func() {
 		num := 0
 		for {
@@ -45,14 +46,14 @@ func main() {
 			defer cancel()
 
 			if num >= 5 {
-				err = obj.DelTopic(ctx, co, token, cliID, "/test/topic")
+				err = obj.DelTopic(ctx, co, token, cliID, topic)
 				fmt.Println("--del topic------", err)
 			} else {
-				obj.Sub(ctx, co, token, cliID, "/test/topic")
+				obj.Sub(ctx, co, token, cliID, topic)
 			}
 
 			num++
-			time.Sleep(time.Second * 5)
+			time.Sleep(time.Second * 1)
 		}
 	}()
 
@@ -63,10 +64,10 @@ func main() {
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 			defer cancel()
-			obj.Push(ctx, co, token, cliID, "/test/topic", payload)
+			obj.Push(ctx, co, token, cliID, topic, payload)
 
 			num++
-			time.Sleep(time.Second * 5)
+			time.Sleep(time.Second * 1)
 		}
 	}()
 

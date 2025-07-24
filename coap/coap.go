@@ -3,7 +3,6 @@ package coap
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/plgd-dev/go-coap/v3/message"
@@ -173,7 +172,7 @@ func (c Coap) Sub(ctx context.Context, co *client.Conn, ctoken, cliID, topic str
 
 	req.AddOptionBytes(message.URIQuery, []byte("clientid="+cliID))
 	req.AddOptionBytes(message.URIQuery, []byte("token="+ctoken))
-	req.AddOptionBytes(message.URIQuery, []byte("observer=0"))
+	req.AddOptionBytes(message.URIQuery, []byte("observe=0"))
 
 	_, err = co.Observe(ctx, path, func(req *pool.Message) {
 		if req == nil {
@@ -193,12 +192,12 @@ func (c Coap) DelTopic(ctx context.Context, co *client.Conn, ctoken, cliID, topi
 	req := co.AcquireMessage(ctx)
 	defer co.ReleaseMessage(req)
 
-	req.SetCode(codes.GET)
+	req.SetCode(codes.POST) //fuck docs;this is post
 	if topic[0] == '/' {
 		topic = topic[1:]
 	}
 	path := "ps/" + topic
-	// path := "ps/" + topic + "?clientid=" + cliID + "&token=" + ctoken
+
 	req.SetPath(path)
 	token, err := message.GetToken()
 	if err != nil {
@@ -208,16 +207,13 @@ func (c Coap) DelTopic(ctx context.Context, co *client.Conn, ctoken, cliID, topi
 
 	req.AddOptionBytes(message.URIQuery, []byte("clientid="+cliID))
 	req.AddOptionBytes(message.URIQuery, []byte("token="+ctoken))
-	resp, err := co.Do(req)
+
+	// resp, err := co.Do(req)
+	_, err = co.Do(req)
 	if err != nil {
 		return
 	}
-	fmt.Println("DelTopic rs :", resp)
-	// content, err := bodyToString(req.Body())
-	// if err != nil {
-	// 	return
-	// }
-	// fmt.Println("DelTopic body:", string(content))
+	// fmt.Println("DelTopic rs :", resp)
 	return err
 }
 
